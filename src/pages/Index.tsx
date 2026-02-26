@@ -1,14 +1,18 @@
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2 } from "lucide-react";
+import { Loader2, ExternalLink, Youtube, ChefHat, Clock, Users, Flame } from "lucide-react";
 
 interface Recipe {
   name: string;
   time: string;
   difficulty: "Easy" | "Medium" | "Hard";
+  description: string;
   ingredients: string[];
   steps: string[];
   proTip: string;
+  servingSuggestion: string;
+  youtubeSearch: string;
+  referenceUrl: string;
 }
 
 const difficultyColor: Record<string, string> = {
@@ -16,6 +20,123 @@ const difficultyColor: Record<string, string> = {
   Medium: "bg-warm-gold text-warm-gold-foreground",
   Hard: "bg-primary text-primary-foreground",
 };
+
+const RecipeCard = ({ recipe, index }: { recipe: Recipe; index: number }) => (
+  <div className="bg-card rounded-xl shadow-md border border-border overflow-hidden">
+    {/* Header */}
+    <div className="bg-primary/10 p-6 border-b border-border">
+      <div className="flex flex-wrap items-start gap-3 justify-between">
+        <div className="space-y-1">
+          <span className="text-xs font-body font-semibold text-muted-foreground uppercase tracking-wider">
+            Recipe {index + 1}
+          </span>
+          <h3 className="font-display text-2xl font-bold text-foreground">
+            {recipe.name}
+          </h3>
+        </div>
+        <span
+          className={`text-xs font-body font-semibold px-3 py-1.5 rounded-full ${difficultyColor[recipe.difficulty] || "bg-muted text-muted-foreground"}`}
+        >
+          {recipe.difficulty}
+        </span>
+      </div>
+      {recipe.description && (
+        <p className="text-sm font-body text-muted-foreground mt-3 leading-relaxed">
+          {recipe.description}
+        </p>
+      )}
+      <div className="flex flex-wrap gap-4 mt-4 text-sm font-body text-muted-foreground">
+        <span className="flex items-center gap-1.5">
+          <Clock className="h-4 w-4" /> {recipe.time}
+        </span>
+        <span className="flex items-center gap-1.5">
+          <Flame className="h-4 w-4" /> {recipe.difficulty}
+        </span>
+      </div>
+    </div>
+
+    <div className="p-6 md:p-8 space-y-6">
+      {/* Ingredients */}
+      <div>
+        <h4 className="font-display text-lg font-bold text-foreground mb-3 flex items-center gap-2">
+          <ChefHat className="h-5 w-5 text-primary" /> Ingredients
+        </h4>
+        <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          {recipe.ingredients.map((ing, j) => (
+            <li
+              key={j}
+              className="text-sm font-body text-muted-foreground flex items-start gap-2"
+            >
+              <span className="text-primary mt-1">•</span>
+              {ing}
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      {/* Steps */}
+      <div>
+        <h4 className="font-display text-lg font-bold text-foreground mb-4">
+          Step-by-Step Instructions
+        </h4>
+        <div className="space-y-4">
+          {recipe.steps.map((step, j) => (
+            <div key={j} className="flex gap-4">
+              <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-body font-bold">
+                {j + 1}
+              </div>
+              <p className="text-sm font-body text-foreground leading-relaxed pt-1">
+                {step}
+              </p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Pro Tip */}
+      <div className="bg-secondary/50 rounded-lg p-4 border border-border">
+        <p className="text-sm font-body text-secondary-foreground">
+          <span className="font-semibold">💡 Pro Tip:</span> {recipe.proTip}
+        </p>
+      </div>
+
+      {/* Serving Suggestion */}
+      {recipe.servingSuggestion && (
+        <div className="bg-muted/50 rounded-lg p-4">
+          <p className="text-sm font-body text-muted-foreground">
+            <span className="font-semibold text-foreground">🍽️ Serving Suggestion:</span>{" "}
+            {recipe.servingSuggestion}
+          </p>
+        </div>
+      )}
+
+      {/* Reference Links */}
+      <div className="flex flex-wrap gap-3 pt-2 border-t border-border">
+        {recipe.youtubeSearch && (
+          <a
+            href={`https://www.youtube.com/results?search_query=${encodeURIComponent(recipe.youtubeSearch)}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 text-sm font-body font-medium text-primary hover:text-primary/80 transition-colors"
+          >
+            <Youtube className="h-4 w-4" /> Watch Video Tutorial
+            <ExternalLink className="h-3 w-3" />
+          </a>
+        )}
+        {recipe.referenceUrl && (
+          <a
+            href={`https://www.google.com/search?q=${encodeURIComponent(recipe.referenceUrl)}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 text-sm font-body font-medium text-primary hover:text-primary/80 transition-colors"
+          >
+            <ExternalLink className="h-4 w-4" /> Find Recipe Online
+          </a>
+        )}
+      </div>
+    </div>
+  </div>
+);
 
 const Index = () => {
   const [ingredients, setIngredients] = useState("");
@@ -61,7 +182,6 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
       <header className="bg-primary py-6 shadow-lg">
         <div className="container max-w-4xl mx-auto px-4">
           <h1 className="font-display text-3xl md:text-4xl text-primary-foreground font-bold">
@@ -75,7 +195,7 @@ const Index = () => {
 
       <main className="container max-w-4xl mx-auto px-4 py-8 space-y-8">
         {/* Input Section */}
-        <section className="bg-card rounded-xl shadow-md p-6 md:p-8 space-y-5">
+        <section className="bg-card rounded-xl shadow-md p-6 md:p-8 space-y-5 border border-border">
           <div>
             <label className="block font-body text-sm font-semibold text-foreground mb-1.5">
               What ingredients do you have?
@@ -105,20 +225,23 @@ const Index = () => {
           <div className="flex flex-col sm:flex-row gap-4">
             <div className="flex-1">
               <label className="block font-body text-sm font-semibold text-foreground mb-1.5">
-                People to cook for?
+                People to cook for
               </label>
-              <input
-                type="number"
-                min={1}
-                max={20}
+              <select
                 value={people}
                 onChange={(e) => setPeople(Number(e.target.value))}
                 className="w-full rounded-lg border border-input bg-background px-4 py-2.5 font-body text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-              />
+              >
+                {[1, 2, 3, 4, 5].map((n) => (
+                  <option key={n} value={n}>
+                    {n} {n === 1 ? "person" : "people"}
+                  </option>
+                ))}
+              </select>
             </div>
             <div className="flex-1">
               <label className="block font-body text-sm font-semibold text-foreground mb-1.5">
-                Time available?
+                Time available
               </label>
               <select
                 value={time}
@@ -147,68 +270,30 @@ const Index = () => {
           </button>
         </section>
 
-        {/* Results */}
+        {/* Loading */}
         {loading && (
           <div className="flex flex-col items-center justify-center py-16 gap-3">
             <Loader2 className="h-10 w-10 animate-spin text-primary" />
             <p className="text-muted-foreground font-body">
-              Cooking up recipes for you...
+              Cooking up detailed recipes for you...
             </p>
           </div>
         )}
 
+        {/* Results */}
         {recipes.length > 0 && (
           <section className="space-y-6">
-            <h2 className="font-display text-2xl font-bold text-foreground">
-              Your Recipes
-            </h2>
-            <div className="grid gap-6">
+            <div className="flex items-center gap-3">
+              <h2 className="font-display text-2xl font-bold text-foreground">
+                Your Recipes
+              </h2>
+              <span className="text-sm font-body text-muted-foreground bg-muted px-3 py-1 rounded-full">
+                {recipes.length} recipes
+              </span>
+            </div>
+            <div className="grid gap-8">
               {recipes.map((recipe, i) => (
-                <div
-                  key={i}
-                  className="bg-card rounded-xl shadow-md p-6 md:p-8 space-y-4 border border-border"
-                >
-                  <div className="flex flex-wrap items-center gap-3">
-                    <h3 className="font-display text-xl font-bold text-foreground">
-                      {recipe.name}
-                    </h3>
-                    <span className={`text-xs font-body font-semibold px-2.5 py-1 rounded-full ${difficultyColor[recipe.difficulty] || "bg-muted text-muted-foreground"}`}>
-                      {recipe.difficulty}
-                    </span>
-                    <span className="text-xs font-body text-muted-foreground">
-                      ⏱ {recipe.time}
-                    </span>
-                  </div>
-
-                  <div>
-                    <h4 className="font-body font-semibold text-sm text-foreground mb-2">
-                      Ingredients
-                    </h4>
-                    <ul className="list-disc list-inside space-y-1 text-sm font-body text-muted-foreground">
-                      {recipe.ingredients.map((ing, j) => (
-                        <li key={j}>{ing}</li>
-                      ))}
-                    </ul>
-                  </div>
-
-                  <div>
-                    <h4 className="font-body font-semibold text-sm text-foreground mb-2">
-                      Steps
-                    </h4>
-                    <ol className="list-decimal list-inside space-y-1.5 text-sm font-body text-muted-foreground">
-                      {recipe.steps.map((step, j) => (
-                        <li key={j}>{step}</li>
-                      ))}
-                    </ol>
-                  </div>
-
-                  <div className="bg-secondary/50 rounded-lg p-4">
-                    <p className="text-sm font-body text-secondary-foreground">
-                      <span className="font-semibold">💡 Pro Tip:</span>{" "}
-                      {recipe.proTip}
-                    </p>
-                  </div>
-                </div>
+                <RecipeCard key={i} recipe={recipe} index={i} />
               ))}
             </div>
           </section>
