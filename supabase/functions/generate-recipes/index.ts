@@ -6,7 +6,7 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-async function generateImage(recipeName: string, apiKey: string): Promise<string | null> {
+async function generateImage(prompt: string, apiKey: string): Promise<string | null> {
   try {
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -16,12 +16,7 @@ async function generateImage(recipeName: string, apiKey: string): Promise<string
       },
       body: JSON.stringify({
         model: "google/gemini-2.5-flash-image",
-        messages: [
-          {
-            role: "user",
-            content: `Generate a beautiful, appetizing food photography image of the Indian dish: "${recipeName}". Top-down view on a rustic plate, warm lighting, garnished beautifully. Ultra high resolution.`,
-          },
-        ],
+        messages: [{ role: "user", content: prompt }],
         modalities: ["image", "text"],
       }),
     });
@@ -32,8 +27,7 @@ async function generateImage(recipeName: string, apiKey: string): Promise<string
     }
 
     const data = await response.json();
-    const imageUrl = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
-    return imageUrl || null;
+    return data.choices?.[0]?.message?.images?.[0]?.image_url?.url || null;
   } catch (e) {
     console.error("Image generation error:", e);
     return null;
@@ -117,7 +111,6 @@ Return ONLY valid JSON array, no markdown, no code blocks:
 
     const data = await response.json();
     const content = data.choices?.[0]?.message?.content || "[]";
-
     const cleaned = content.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
 
     let recipes;
@@ -128,15 +121,56 @@ Return ONLY valid JSON array, no markdown, no code blocks:
       throw new Error("Failed to parse recipe data");
     }
 
-    // Generate images for all recipes in parallel
-    const imagePromises = recipes.map((r: any) => generateImage(r.name, LOVABLE_API_KEY));
-    const images = await Promise.all(imagePromises);
+    // Build all image generation promises: 1 hero + N steps per recipe
+    const allImageJobs: { recipeIdx: number; type: "hero" | "step"; stepIdx?: number; prompt: string }[] = [];
+
+    for (let ri = 0; ri < recipes.length; ri++) {
+      const r = recipes[ri];
+      // Hero image
+      allImageJobs.push({
+        recipeIdx: ri,
+        type: "hero",
+        prompt: `Beautiful appetizing food photography of the Indian dish "${r.name}". Top-down view on a rustic plate, warm lighting, garnished beautifully. Ultra high resolution.`,
+      });
+      // Step images
+      for (let si = 0; si < r.steps.length; si++) {
+        const stepText = r.steps[si].substring(0, 200);
+        allImageJobs.push({
+          recipeIdx: ri,
+          type: "step",
+          stepIdx: si,
+          prompt: `Cooking process photo for Indian recipe "${r.name}", step ${si + 1}: ${stepText}. Realistic kitchen scene, overhead angle, showing hands cooking. High quality food photography.`,
+        });
+      }
+    }
+
+    // Run all image generations in parallel (batched to avoid overwhelming)
+    const BATCH_SIZE = 5;
+    const imageResults = new Array(allImageJobs.length).fill(null);
+
+    for (let b = 0; b < allImageJobs.length; b += BATCH_SIZE) {
+      const batch = allImageJobs.slice(b, b + BATCH_SIZE);
+      const results = await Promise.all(
+        batch.map((job) => generateImage(job.prompt, LOVABLE_API_KEY))
+      );
+      for (let i = 0; i < results.length; i++) {
+        imageResults[b + i] = results[i];
+      }
+    }
 
     // Attach images to recipes
-    recipes = recipes.map((r: any, i: number) => ({
-      ...r,
-      image: images[i] || null,
-    }));
+    for (let j = 0; j < allImageJobs.length; j++) {
+      const job = allImageJobs[j];
+      const img = imageResults[j];
+      if (job.type === "hero") {
+        recipes[job.recipeIdx].image = img;
+      } else if (job.type === "step" && job.stepIdx !== undefined) {
+        if (!recipes[job.recipeIdx].stepImages) {
+          recipes[job.recipeIdx].stepImages = [];
+        }
+        recipes[job.recipeIdx].stepImages[job.stepIdx] = img;
+      }
+    }
 
     return new Response(JSON.stringify({ recipes }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
