@@ -138,6 +138,55 @@ const RecipeCard = ({ recipe, index }: { recipe: Recipe; index: number }) => (
   </div>
 );
 
+const QUICK_INGREDIENTS = [
+  { label: "🍚 Rice", value: "rice" },
+  { label: "🫘 Dal", value: "dal" },
+  { label: "🥔 Potato", value: "potato" },
+  { label: "🧅 Onion", value: "onion" },
+  { label: "🍅 Tomato", value: "tomato" },
+  { label: "🌶️ Green Chilli", value: "green chilli" },
+  { label: "🧄 Garlic", value: "garlic" },
+  { label: "🫚 Ginger", value: "ginger" },
+  { label: "🥚 Eggs", value: "eggs" },
+  { label: "🍗 Chicken", value: "chicken" },
+  { label: "🥛 Milk", value: "milk" },
+  { label: "🧈 Ghee", value: "ghee" },
+  { label: "🫑 Capsicum", value: "capsicum" },
+  { label: "🥕 Carrot", value: "carrot" },
+  { label: "🍋 Lemon", value: "lemon" },
+  { label: "🌿 Coriander", value: "coriander" },
+  { label: "🥜 Peanuts", value: "peanuts" },
+  { label: "🫛 Paneer", value: "paneer" },
+  { label: "🌾 Atta", value: "atta" },
+  { label: "🥣 Besan", value: "besan" },
+];
+
+const QUICK_EQUIPMENT = [
+  { label: "♨️ Pressure Cooker", value: "pressure cooker" },
+  { label: "🍳 Tawa", value: "tawa" },
+  { label: "🥘 Kadhai", value: "kadhai" },
+  { label: "🔥 Gas Stove", value: "gas stove" },
+  { label: "🍲 Saucepan", value: "saucepan" },
+  { label: "⚡ Mixer Grinder", value: "mixer grinder" },
+  { label: "📦 Microwave", value: "microwave" },
+  { label: "🫕 Induction", value: "induction" },
+  { label: "🥄 Rolling Pin", value: "rolling pin" },
+  { label: "🏺 Handi", value: "handi" },
+];
+
+const toggleItem = (
+  current: string,
+  item: string,
+  setter: React.Dispatch<React.SetStateAction<string>>
+) => {
+  const items = current.split(",").map((s) => s.trim()).filter(Boolean);
+  if (items.includes(item)) {
+    setter(items.filter((i) => i !== item).join(", "));
+  } else {
+    setter([...items, item].join(", "));
+  }
+};
+
 const Index = () => {
   const [ingredients, setIngredients] = useState("");
   const [equipment, setEquipment] = useState("");
@@ -146,6 +195,9 @@ const Index = () => {
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  const selectedIngredients = ingredients.split(",").map((s) => s.trim()).filter(Boolean);
+  const selectedEquipment = equipment.split(",").map((s) => s.trim()).filter(Boolean);
 
   const handleGenerate = async () => {
     if (!ingredients.trim()) {
@@ -207,6 +259,22 @@ const Index = () => {
               onChange={(e) => setIngredients(e.target.value)}
               className="w-full rounded-lg border border-input bg-background px-4 py-2.5 font-body text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
             />
+            <div className="flex flex-wrap gap-2 mt-2">
+              {QUICK_INGREDIENTS.map((item) => (
+                <button
+                  key={item.value}
+                  type="button"
+                  onClick={() => toggleItem(ingredients, item.value, setIngredients)}
+                  className={`text-xs font-body px-3 py-1.5 rounded-full border transition-colors ${
+                    selectedIngredients.includes(item.value)
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "bg-secondary/50 text-secondary-foreground border-border hover:bg-secondary"
+                  }`}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
           </div>
 
           <div>
@@ -215,11 +283,27 @@ const Index = () => {
             </label>
             <input
               type="text"
-              placeholder="pressure cooker, pan, gas stove..."
+              placeholder="pressure cooker, tawa, kadhai..."
               value={equipment}
               onChange={(e) => setEquipment(e.target.value)}
               className="w-full rounded-lg border border-input bg-background px-4 py-2.5 font-body text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
             />
+            <div className="flex flex-wrap gap-2 mt-2">
+              {QUICK_EQUIPMENT.map((item) => (
+                <button
+                  key={item.value}
+                  type="button"
+                  onClick={() => toggleItem(equipment, item.value, setEquipment)}
+                  className={`text-xs font-body px-3 py-1.5 rounded-full border transition-colors ${
+                    selectedEquipment.includes(item.value)
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "bg-secondary/50 text-secondary-foreground border-border hover:bg-secondary"
+                  }`}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
           </div>
 
           <div className="flex flex-col sm:flex-row gap-4">
