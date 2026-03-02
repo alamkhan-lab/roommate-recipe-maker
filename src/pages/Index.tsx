@@ -14,6 +14,7 @@ interface Recipe {
   servingSuggestion: string;
   youtubeSearch: string;
   referenceUrl: string;
+  image?: string | null;
 }
 
 const difficultyColor: Record<string, string> = {
@@ -44,6 +45,17 @@ const RecipeCard = ({ recipe, index }: { recipe: Recipe; index: number }) => {
 
   return (
   <div className="bg-card rounded-xl shadow-md border border-border overflow-hidden">
+    {/* Recipe Image */}
+    {recipe.image && (
+      <div className="w-full aspect-video overflow-hidden">
+        <img
+          src={recipe.image}
+          alt={recipe.name}
+          className="w-full h-full object-cover"
+          loading="lazy"
+        />
+      </div>
+    )}
     {/* Header */}
     <div className="bg-primary/10 p-6 border-b border-border">
       <div className="flex flex-wrap items-start gap-3 justify-between">

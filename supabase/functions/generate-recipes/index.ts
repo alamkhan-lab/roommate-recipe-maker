@@ -6,6 +6,40 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+async function generateImage(recipeName: string, apiKey: string): Promise<string | null> {
+  try {
+    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash-image",
+        messages: [
+          {
+            role: "user",
+            content: `Generate a beautiful, appetizing food photography image of the Indian dish: "${recipeName}". Top-down view on a rustic plate, warm lighting, garnished beautifully. Ultra high resolution.`,
+          },
+        ],
+        modalities: ["image", "text"],
+      }),
+    });
+
+    if (!response.ok) {
+      console.error("Image generation failed:", response.status);
+      return null;
+    }
+
+    const data = await response.json();
+    const imageUrl = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
+    return imageUrl || null;
+  } catch (e) {
+    console.error("Image generation error:", e);
+    return null;
+  }
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -93,6 +127,16 @@ Return ONLY valid JSON array, no markdown, no code blocks:
       console.error("Failed to parse AI response:", cleaned);
       throw new Error("Failed to parse recipe data");
     }
+
+    // Generate images for all recipes in parallel
+    const imagePromises = recipes.map((r: any) => generateImage(r.name, LOVABLE_API_KEY));
+    const images = await Promise.all(imagePromises);
+
+    // Attach images to recipes
+    recipes = recipes.map((r: any, i: number) => ({
+      ...r,
+      image: images[i] || null,
+    }));
 
     return new Response(JSON.stringify({ recipes }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
