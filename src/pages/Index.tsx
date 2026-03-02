@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, ExternalLink, Youtube, ChefHat, Clock, Users, Flame } from "lucide-react";
+import { Loader2, ExternalLink, Youtube, ChefHat, Clock, Flame, ThumbsUp, ThumbsDown } from "lucide-react";
+import { toast } from "sonner";
 
 interface Recipe {
   name: string;
@@ -21,7 +22,27 @@ const difficultyColor: Record<string, string> = {
   Hard: "bg-primary text-primary-foreground",
 };
 
-const RecipeCard = ({ recipe, index }: { recipe: Recipe; index: number }) => (
+const RecipeCard = ({ recipe, index }: { recipe: Recipe; index: number }) => {
+  const [feedback, setFeedback] = useState<boolean | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleFeedback = async (isHelpful: boolean) => {
+    if (feedback !== null) return;
+    setSubmitting(true);
+    const { error } = await supabase.from("recipe_feedback").insert({
+      recipe_name: recipe.name,
+      is_helpful: isHelpful,
+    });
+    setSubmitting(false);
+    if (error) {
+      toast.error("Could not save feedback. Try again.");
+      return;
+    }
+    setFeedback(isHelpful);
+    toast.success("Thanks for your feedback! 🙏");
+  };
+
+  return (
   <div className="bg-card rounded-xl shadow-md border border-border overflow-hidden">
     {/* Header */}
     <div className="bg-primary/10 p-6 border-b border-border">
@@ -134,10 +155,37 @@ const RecipeCard = ({ recipe, index }: { recipe: Recipe; index: number }) => (
           </a>
         )}
       </div>
+
+      {/* Feedback */}
+      <div className="flex items-center gap-3 pt-3 border-t border-border">
+        <span className="text-sm font-body text-muted-foreground">Was this recipe helpful?</span>
+        {feedback === null ? (
+          <div className="flex gap-2">
+            <button
+              onClick={() => handleFeedback(true)}
+              disabled={submitting}
+              className="inline-flex items-center gap-1.5 text-sm font-body font-medium px-3 py-1.5 rounded-full border border-border hover:bg-accent hover:text-accent-foreground transition-colors disabled:opacity-50"
+            >
+              <ThumbsUp className="h-4 w-4" /> Yes
+            </button>
+            <button
+              onClick={() => handleFeedback(false)}
+              disabled={submitting}
+              className="inline-flex items-center gap-1.5 text-sm font-body font-medium px-3 py-1.5 rounded-full border border-border hover:bg-accent hover:text-accent-foreground transition-colors disabled:opacity-50"
+            >
+              <ThumbsDown className="h-4 w-4" /> No
+            </button>
+          </div>
+        ) : (
+          <span className="text-sm font-body text-primary font-medium">
+            {feedback ? "👍 Glad it helped!" : "Thanks, we'll improve!"}
+          </span>
+        )}
+      </div>
     </div>
   </div>
-);
-
+  );
+};
 const QUICK_INGREDIENTS = [
   { label: "🍚 Rice", value: "rice" },
   { label: "🫘 Dal", value: "dal" },

@@ -14,7 +14,27 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      recipe_feedback: {
+        Row: {
+          created_at: string
+          id: string
+          is_helpful: boolean
+          recipe_name: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_helpful: boolean
+          recipe_name: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_helpful?: boolean
+          recipe_name?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
