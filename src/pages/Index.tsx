@@ -15,6 +15,7 @@ interface Recipe {
   youtubeSearch: string;
   referenceUrl: string;
   image?: string | null;
+  stepImages?: (string | null)[];
 }
 
 const difficultyColor: Record<string, string> = {
@@ -112,15 +113,27 @@ const RecipeCard = ({ recipe, index }: { recipe: Recipe; index: number }) => {
         <h4 className="font-display text-lg font-bold text-foreground mb-4">
           Step-by-Step Instructions
         </h4>
-        <div className="space-y-4">
+        <div className="space-y-6">
           {recipe.steps.map((step, j) => (
-            <div key={j} className="flex gap-4">
-              <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-body font-bold">
-                {j + 1}
+            <div key={j} className="space-y-3">
+              <div className="flex gap-4">
+                <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-body font-bold">
+                  {j + 1}
+                </div>
+                <p className="text-sm font-body text-foreground leading-relaxed pt-1">
+                  {step}
+                </p>
               </div>
-              <p className="text-sm font-body text-foreground leading-relaxed pt-1">
-                {step}
-              </p>
+              {recipe.stepImages?.[j] && (
+                <div className="ml-12 rounded-lg overflow-hidden border border-border">
+                  <img
+                    src={recipe.stepImages[j]!}
+                    alt={`Step ${j + 1}`}
+                    className="w-full max-h-64 object-cover"
+                    loading="lazy"
+                  />
+                </div>
+              )}
             </div>
           ))}
         </div>
