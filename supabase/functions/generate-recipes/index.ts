@@ -6,30 +6,37 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-async function generateImage(prompt: string, apiKey: string): Promise<string | null> {
+async function generateImage(prompt: string, geminiApiKey: string): Promise<string | null> {
   try {
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash-image",
-        messages: [{ role: "user", content: prompt }],
-        modalities: ["image", "text"],
-      }),
-    });
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${geminiApiKey}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: {
+            responseModalities: ["IMAGE", "TEXT"],
+          },
+        }),
+      }
+    );
 
     if (!response.ok) {
-      console.error("Image generation failed:", response.status);
+      console.error("Gemini image generation failed:", response.status, await response.text());
       return null;
     }
 
     const data = await response.json();
-    return data.choices?.[0]?.message?.images?.[0]?.image_url?.url || null;
+    const parts = data.candidates?.[0]?.content?.parts || [];
+    for (const part of parts) {
+      if (part.inlineData) {
+        return `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
+      }
+    }
+    return null;
   } catch (e) {
-    console.error("Image generation error:", e);
+    console.error("Gemini image generation error:", e);
     return null;
   }
 }
@@ -44,6 +51,9 @@ serve(async (req) => {
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
+
+    const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
+    if (!GEMINI_API_KEY) throw new Error("GEMINI_API_KEY is not configured");
 
     const prompt = `You are a professional Indian chef and recipe writer. The user has:
 - Ingredients: ${ingredients}
@@ -155,7 +165,7 @@ Return ONLY valid JSON array, no markdown, no code blocks:
     for (let b = 0; b < allImageJobs.length; b += BATCH_SIZE) {
       const batch = allImageJobs.slice(b, b + BATCH_SIZE);
       const results = await Promise.all(
-        batch.map((job) => generateImage(job.prompt, LOVABLE_API_KEY))
+        batch.map((job) => generateImage(job.prompt, GEMINI_API_KEY))
       );
       for (let i = 0; i < results.length; i++) {
         imageResults[b + i] = results[i];
