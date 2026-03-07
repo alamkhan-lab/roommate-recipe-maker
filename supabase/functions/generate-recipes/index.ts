@@ -84,47 +84,32 @@ Return ONLY valid JSON array, no markdown, no code blocks:
 [{"name":"...","time":"...","difficulty":"...","description":"...","ingredients":["..."],"steps":["..."],"proTip":"...","servingSuggestion":"...","youtubeSearch":"...","referenceUrl":"...","isVegetarian":true,"isGlutenFree":false,"spiceLevel":"medium"}]`;
 
     const response = await fetch(
-      "https://ai.gateway.lovable.dev/v1/chat/completions",
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
       {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${LOVABLE_API_KEY}`,
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: "google/gemini-3-flash-preview",
-          messages: [
+          contents: [
             {
-              role: "system",
-              content:
-                "You are a professional Indian chef and recipe educator. Return ONLY valid JSON arrays, no markdown formatting, no code blocks, no extra text. Provide detailed, educational step-by-step instructions that teach cooking techniques.",
+              role: "user",
+              parts: [{ text: "You are a professional Indian chef and recipe educator. Return ONLY valid JSON arrays, no markdown formatting, no code blocks, no extra text.\n\n" + prompt }],
             },
-            { role: "user", content: prompt },
           ],
+          generationConfig: {
+            temperature: 0.7,
+          },
         }),
       }
     );
 
     if (!response.ok) {
-      if (response.status === 429) {
-        return new Response(
-          JSON.stringify({ error: "Rate limit exceeded. Please try again later." }),
-          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-      if (response.status === 402) {
-        return new Response(
-          JSON.stringify({ error: "AI credits exhausted. Please add credits." }),
-          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
       const text = await response.text();
-      console.error("AI gateway error:", response.status, text);
-      throw new Error("AI gateway error");
+      console.error("Gemini API error:", response.status, text);
+      throw new Error("Gemini API error: " + response.status);
     }
 
     const data = await response.json();
-    const content = data.choices?.[0]?.message?.content || "[]";
+    const content = data.candidates?.[0]?.content?.parts?.[0]?.text || "[]";
     const cleaned = content
       .replace(/```json\n?/g, "")
       .replace(/```\n?/g, "")
