@@ -83,7 +83,7 @@ For EACH recipe, provide detailed, well-defined content:
 Return ONLY valid JSON array, no markdown, no code blocks:
 [{"name":"...","time":"...","difficulty":"...","description":"...","ingredients":["..."],"steps":["..."],"proTip":"...","servingSuggestion":"...","youtubeSearch":"...","referenceUrl":"...","isVegetarian":true,"isGlutenFree":false,"spiceLevel":"medium"}]`;
 
-    // Use OpenAI ChatGPT API for recipe text generation
+    // Use OpenAI API for recipe text generation
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
