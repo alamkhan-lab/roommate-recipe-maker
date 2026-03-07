@@ -49,10 +49,10 @@ serve(async (req) => {
   try {
     const { ingredients, equipment, time, people, dietaryNotes } = await req.json();
 
-    // Use Gemini API directly for both text and image generation
+    const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
+    if (!OPENAI_API_KEY) throw new Error("OPENAI_API_KEY is not configured");
 
     const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
-    if (!GEMINI_API_KEY) throw new Error("GEMINI_API_KEY is not configured");
 
     const dietaryContext = dietaryNotes ? `\n- Dietary Requirements: ${dietaryNotes}` : "";
 
@@ -83,33 +83,40 @@ For EACH recipe, provide detailed, well-defined content:
 Return ONLY valid JSON array, no markdown, no code blocks:
 [{"name":"...","time":"...","difficulty":"...","description":"...","ingredients":["..."],"steps":["..."],"proTip":"...","servingSuggestion":"...","youtubeSearch":"...","referenceUrl":"...","isVegetarian":true,"isGlutenFree":false,"spiceLevel":"medium"}]`;
 
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${GEMINI_API_KEY}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [
-            {
-              role: "user",
-              parts: [{ text: "You are a professional Indian chef and recipe educator. Return ONLY valid JSON arrays, no markdown formatting, no code blocks, no extra text.\n\n" + prompt }],
-            },
-          ],
-          generationConfig: {
-            temperature: 0.7,
+    // Use OpenAI ChatGPT API for recipe text generation
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${OPENAI_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content: "You are a professional Indian chef and recipe educator. Return ONLY valid JSON arrays, no markdown formatting, no code blocks, no extra text.",
           },
-        }),
-      }
-    );
+          { role: "user", content: prompt },
+        ],
+        temperature: 0.7,
+      }),
+    });
 
     if (!response.ok) {
       const text = await response.text();
-      console.error("Gemini API error:", response.status, text);
-      throw new Error("Gemini API error: " + response.status);
+      console.error("OpenAI API error:", response.status, text);
+      if (response.status === 429) {
+        return new Response(
+          JSON.stringify({ error: "Rate limit exceeded. Please try again later." }),
+          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      throw new Error("OpenAI API error: " + response.status);
     }
 
     const data = await response.json();
-    const content = data.candidates?.[0]?.content?.parts?.[0]?.text || "[]";
+    const content = data.choices?.[0]?.message?.content || "[]";
     const cleaned = content
       .replace(/```json\n?/g, "")
       .replace(/```\n?/g, "")
@@ -124,54 +131,52 @@ Return ONLY valid JSON array, no markdown, no code blocks:
       throw new Error("Failed to parse recipe data");
     }
 
-    // Build all image generation promises: 1 hero + N steps per recipe
-    const allImageJobs: { recipeIdx: number; type: "hero" | "step"; stepIdx?: number; prompt: string }[] = [];
+    // Generate images with Gemini if API key is available
+    if (GEMINI_API_KEY) {
+      const allImageJobs: { recipeIdx: number; type: "hero" | "step"; stepIdx?: number; prompt: string }[] = [];
 
-    for (let ri = 0; ri < recipes.length; ri++) {
-      const r = recipes[ri];
-      // Hero image
-      allImageJobs.push({
-        recipeIdx: ri,
-        type: "hero",
-        prompt: `Beautiful appetizing food photography of the Indian dish "${r.name}". Top-down view on a rustic plate, warm lighting, garnished beautifully. Ultra high resolution.`,
-      });
-      // Step images
-      for (let si = 0; si < r.steps.length; si++) {
-        const stepText = r.steps[si].substring(0, 200);
+      for (let ri = 0; ri < recipes.length; ri++) {
+        const r = recipes[ri];
         allImageJobs.push({
           recipeIdx: ri,
-          type: "step",
-          stepIdx: si,
-          prompt: `Cooking process photo for Indian recipe "${r.name}", step ${si + 1}: ${stepText}. Realistic kitchen scene, overhead angle, showing hands cooking. High quality food photography.`,
+          type: "hero",
+          prompt: `Beautiful appetizing food photography of the Indian dish "${r.name}". Top-down view on a rustic plate, warm lighting, garnished beautifully. Ultra high resolution.`,
         });
-      }
-    }
-
-    // Run all image generations in parallel (batched to avoid overwhelming)
-    const BATCH_SIZE = 5;
-    const imageResults = new Array(allImageJobs.length).fill(null);
-
-    for (let b = 0; b < allImageJobs.length; b += BATCH_SIZE) {
-      const batch = allImageJobs.slice(b, b + BATCH_SIZE);
-      const results = await Promise.all(
-        batch.map((job) => generateImage(job.prompt, GEMINI_API_KEY))
-      );
-      for (let i = 0; i < results.length; i++) {
-        imageResults[b + i] = results[i];
-      }
-    }
-
-    // Attach images to recipes
-    for (let j = 0; j < allImageJobs.length; j++) {
-      const job = allImageJobs[j];
-      const img = imageResults[j];
-      if (job.type === "hero") {
-        recipes[job.recipeIdx].image = img;
-      } else if (job.type === "step" && job.stepIdx !== undefined) {
-        if (!recipes[job.recipeIdx].stepImages) {
-          recipes[job.recipeIdx].stepImages = [];
+        for (let si = 0; si < r.steps.length; si++) {
+          const stepText = r.steps[si].substring(0, 200);
+          allImageJobs.push({
+            recipeIdx: ri,
+            type: "step",
+            stepIdx: si,
+            prompt: `Cooking process photo for Indian recipe "${r.name}", step ${si + 1}: ${stepText}. Realistic kitchen scene, overhead angle, showing hands cooking. High quality food photography.`,
+          });
         }
-        recipes[job.recipeIdx].stepImages[job.stepIdx] = img;
+      }
+
+      const BATCH_SIZE = 5;
+      const imageResults = new Array(allImageJobs.length).fill(null);
+
+      for (let b = 0; b < allImageJobs.length; b += BATCH_SIZE) {
+        const batch = allImageJobs.slice(b, b + BATCH_SIZE);
+        const results = await Promise.all(
+          batch.map((job) => generateImage(job.prompt, GEMINI_API_KEY))
+        );
+        for (let i = 0; i < results.length; i++) {
+          imageResults[b + i] = results[i];
+        }
+      }
+
+      for (let j = 0; j < allImageJobs.length; j++) {
+        const job = allImageJobs[j];
+        const img = imageResults[j];
+        if (job.type === "hero") {
+          recipes[job.recipeIdx].image = img;
+        } else if (job.type === "step" && job.stepIdx !== undefined) {
+          if (!recipes[job.recipeIdx].stepImages) {
+            recipes[job.recipeIdx].stepImages = [];
+          }
+          recipes[job.recipeIdx].stepImages[job.stepIdx] = img;
+        }
       }
     }
 
