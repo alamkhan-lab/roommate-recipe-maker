@@ -165,7 +165,7 @@ Return ONLY valid JSON array, no markdown, no code blocks:
     for (let b = 0; b < allImageJobs.length; b += BATCH_SIZE) {
       const batch = allImageJobs.slice(b, b + BATCH_SIZE);
       const results = await Promise.all(
-        batch.map((job) => generateImage(job.prompt, LOVABLE_API_KEY))
+        batch.map((job) => generateImage(job.prompt, GEMINI_API_KEY))
       );
       for (let i = 0; i < results.length; i++) {
         imageResults[b + i] = results[i];
