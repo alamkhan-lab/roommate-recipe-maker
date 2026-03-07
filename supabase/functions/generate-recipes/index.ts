@@ -47,7 +47,7 @@ serve(async (req) => {
   }
 
   try {
-    const { ingredients, equipment, time, people } = await req.json();
+    const { ingredients, equipment, time, people, dietaryNotes } = await req.json();
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
@@ -55,13 +55,15 @@ serve(async (req) => {
     const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
     if (!GEMINI_API_KEY) throw new Error("GEMINI_API_KEY is not configured");
 
+    const dietaryContext = dietaryNotes ? `\n- Dietary Requirements: ${dietaryNotes}` : "";
+
     const prompt = `You are a professional Indian chef and recipe writer. The user has:
 - Ingredients: ${ingredients}
 - Equipment: ${equipment}
 - Time: ${time} minutes
-- Serving: ${people} people
+- Serving: ${people} people${dietaryContext}
 
-Generate exactly 3 Indian recipes (mix of veg and non-veg if possible given ingredients).
+Generate exactly 3 Indian recipes (try to satisfy dietary requirements above).
 
 For EACH recipe, provide detailed, well-defined content:
 
@@ -73,11 +75,14 @@ For EACH recipe, provide detailed, well-defined content:
 6. **steps** - Array of 6-10 DETAILED step-by-step instructions. Each step should be a full paragraph (2-4 sentences) explaining the technique, what to look/smell for, timing details, and common mistakes to avoid. Make these genuinely educational.
 7. **proTip** - A detailed pro tip (2-3 sentences) with advanced cooking advice
 8. **servingSuggestion** - What to serve alongside this dish
-9. **youtubeSearch** - A YouTube search query string that would find a similar recipe video (e.g. "how to make dal tadka recipe Indian")
-10. **referenceUrl** - A search query for finding this recipe online (e.g. "authentic dal tadka recipe")
+9. **youtubeSearch** - A YouTube search query string that would find a similar recipe video
+10. **referenceUrl** - A search query for finding this recipe online
+11. **isVegetarian** - boolean, true if the recipe contains no meat/fish/eggs
+12. **isGlutenFree** - boolean, true if the recipe contains no wheat/gluten
+13. **spiceLevel** - "none", "mild", "medium", or "hot"
 
 Return ONLY valid JSON array, no markdown, no code blocks:
-[{"name":"...","time":"...","difficulty":"...","description":"...","ingredients":["..."],"steps":["..."],"proTip":"...","servingSuggestion":"...","youtubeSearch":"...","referenceUrl":"..."}]`;
+[{"name":"...","time":"...","difficulty":"...","description":"...","ingredients":["..."],"steps":["..."],"proTip":"...","servingSuggestion":"...","youtubeSearch":"...","referenceUrl":"...","isVegetarian":true,"isGlutenFree":false,"spiceLevel":"medium"}]`;
 
     const response = await fetch(
       "https://ai.gateway.lovable.dev/v1/chat/completions",
