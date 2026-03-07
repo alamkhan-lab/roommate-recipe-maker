@@ -105,20 +105,14 @@ Return ONLY valid JSON array, no markdown, no code blocks:
 
     if (!response.ok) {
       const text = await response.text();
-      console.error("AI gateway error:", response.status, text);
+      console.error("OpenAI API error:", response.status, text);
       if (response.status === 429) {
         return new Response(
           JSON.stringify({ error: "Rate limit exceeded. Please try again later." }),
           { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
-      if (response.status === 402) {
-        return new Response(
-          JSON.stringify({ error: "AI credits exhausted. Please add funds." }),
-          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-      throw new Error("AI gateway error: " + response.status);
+      throw new Error("OpenAI API error: " + response.status);
     }
 
     const data = await response.json();
