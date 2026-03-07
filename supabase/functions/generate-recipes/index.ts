@@ -83,15 +83,15 @@ For EACH recipe, provide detailed, well-defined content:
 Return ONLY valid JSON array, no markdown, no code blocks:
 [{"name":"...","time":"...","difficulty":"...","description":"...","ingredients":["..."],"steps":["..."],"proTip":"...","servingSuggestion":"...","youtubeSearch":"...","referenceUrl":"...","isVegetarian":true,"isGlutenFree":false,"spiceLevel":"medium"}]`;
 
-    // Use OpenAI ChatGPT API for recipe text generation
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    // Use Lovable AI Gateway for recipe text generation
+    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${OPENAI_API_KEY}`,
+        Authorization: `Bearer ${LOVABLE_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "gpt-4o-mini",
+        model: "google/gemini-2.5-flash",
         messages: [
           {
             role: "system",
@@ -99,7 +99,6 @@ Return ONLY valid JSON array, no markdown, no code blocks:
           },
           { role: "user", content: prompt },
         ],
-        temperature: 0.7,
       }),
     });
 
