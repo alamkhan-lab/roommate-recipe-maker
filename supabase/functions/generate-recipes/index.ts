@@ -111,7 +111,11 @@ Return ONLY valid JSON array, no markdown, no code blocks:
 
     const data = await response.json();
     const content = data.choices?.[0]?.message?.content || "[]";
-    const cleaned = content.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+    const cleaned = content
+      .replace(/```json\n?/g, "")
+      .replace(/```\n?/g, "")
+      .replace(/,\s*([\]}])/g, "$1")
+      .trim();
 
     let recipes;
     try {
