@@ -6,37 +6,32 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-async function generateImage(prompt: string, geminiApiKey: string): Promise<string | null> {
+async function generateImage(prompt: string, apiKey: string): Promise<string | null> {
   try {
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${geminiApiKey}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: {
-            responseModalities: ["IMAGE", "TEXT"],
-          },
-        }),
-      }
-    );
+    const response = await fetch("https://api.openai.com/v1/images/generations", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "dall-e-3",
+        prompt,
+        n: 1,
+        size: "1024x1024",
+        response_format: "url",
+      }),
+    });
 
     if (!response.ok) {
-      console.error("Gemini image generation failed:", response.status, await response.text());
+      console.error("DALL-E image generation failed:", response.status, await response.text());
       return null;
     }
 
     const data = await response.json();
-    const parts = data.candidates?.[0]?.content?.parts || [];
-    for (const part of parts) {
-      if (part.inlineData) {
-        return `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
-      }
-    }
-    return null;
+    return data.data?.[0]?.url || null;
   } catch (e) {
-    console.error("Gemini image generation error:", e);
+    console.error("DALL-E image generation error:", e);
     return null;
   }
 }
@@ -49,10 +44,8 @@ serve(async (req) => {
   try {
     const { ingredients, equipment, time, people, dietaryNotes } = await req.json();
 
-    const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
-    if (!OPENAI_API_KEY) throw new Error("OPENAI_API_KEY is not configured");
-
-    const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
+    const API_KEY = Deno.env.get("ChatGPT_API");
+    if (!API_KEY) throw new Error("ChatGPT_API is not configured");
 
     const dietaryContext = dietaryNotes ? `\n- Dietary Requirements: ${dietaryNotes}` : "";
 
@@ -83,11 +76,10 @@ For EACH recipe, provide detailed, well-defined content:
 Return ONLY valid JSON array, no markdown, no code blocks:
 [{"name":"...","time":"...","difficulty":"...","description":"...","ingredients":["..."],"steps":["..."],"proTip":"...","servingSuggestion":"...","youtubeSearch":"...","referenceUrl":"...","isVegetarian":true,"isGlutenFree":false,"spiceLevel":"medium"}]`;
 
-    // Use OpenAI API for recipe text generation
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${OPENAI_API_KEY}`,
+        Authorization: `Bearer ${API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
@@ -131,53 +123,17 @@ Return ONLY valid JSON array, no markdown, no code blocks:
       throw new Error("Failed to parse recipe data");
     }
 
-    // Generate images with Gemini if API key is available
-    if (GEMINI_API_KEY) {
-      const allImageJobs: { recipeIdx: number; type: "hero" | "step"; stepIdx?: number; prompt: string }[] = [];
+    // Generate hero images using DALL-E 3 (skip step images to save API calls)
+    const imagePromises = recipes.map((r: any) =>
+      generateImage(
+        `Beautiful appetizing food photography of the Indian dish "${r.name}". Top-down view on a rustic plate, warm lighting, garnished beautifully. Ultra high resolution.`,
+        API_KEY
+      )
+    );
 
-      for (let ri = 0; ri < recipes.length; ri++) {
-        const r = recipes[ri];
-        allImageJobs.push({
-          recipeIdx: ri,
-          type: "hero",
-          prompt: `Beautiful appetizing food photography of the Indian dish "${r.name}". Top-down view on a rustic plate, warm lighting, garnished beautifully. Ultra high resolution.`,
-        });
-        for (let si = 0; si < r.steps.length; si++) {
-          const stepText = r.steps[si].substring(0, 200);
-          allImageJobs.push({
-            recipeIdx: ri,
-            type: "step",
-            stepIdx: si,
-            prompt: `Cooking process photo for Indian recipe "${r.name}", step ${si + 1}: ${stepText}. Realistic kitchen scene, overhead angle, showing hands cooking. High quality food photography.`,
-          });
-        }
-      }
-
-      const BATCH_SIZE = 5;
-      const imageResults = new Array(allImageJobs.length).fill(null);
-
-      for (let b = 0; b < allImageJobs.length; b += BATCH_SIZE) {
-        const batch = allImageJobs.slice(b, b + BATCH_SIZE);
-        const results = await Promise.all(
-          batch.map((job) => generateImage(job.prompt, GEMINI_API_KEY))
-        );
-        for (let i = 0; i < results.length; i++) {
-          imageResults[b + i] = results[i];
-        }
-      }
-
-      for (let j = 0; j < allImageJobs.length; j++) {
-        const job = allImageJobs[j];
-        const img = imageResults[j];
-        if (job.type === "hero") {
-          recipes[job.recipeIdx].image = img;
-        } else if (job.type === "step" && job.stepIdx !== undefined) {
-          if (!recipes[job.recipeIdx].stepImages) {
-            recipes[job.recipeIdx].stepImages = [];
-          }
-          recipes[job.recipeIdx].stepImages[job.stepIdx] = img;
-        }
-      }
+    const images = await Promise.all(imagePromises);
+    for (let i = 0; i < recipes.length; i++) {
+      recipes[i].image = images[i];
     }
 
     return new Response(JSON.stringify({ recipes }), {
